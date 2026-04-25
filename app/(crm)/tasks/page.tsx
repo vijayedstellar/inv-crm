@@ -1,44 +1,97 @@
-import { PageShell } from "@/components/page-shell";
-import { db } from "@/lib/db";
-import { tasks } from "@/lib/db/schema";
+"use client";
+import { useState } from "react";
 
-const STATUS_STYLE: Record<string, string> = {
-  open: "bg-amber-50 text-amber-700",
-  in_progress: "bg-blue-50 text-blue-700",
-  done: "bg-green-50 text-green-700",
-  blocked: "bg-red-50 text-red-700",
+const TASKS = {
+  overdue: [
+    { t: "Follow-up call — David Chen", sub: "ITIL® 4 Foundation · SQL", due: "2d ago", p: "p-urgent", ai: false },
+    { t: "Send PRINCE2 proposal — TechFlow Ltd", sub: "B2B · 8 seats", due: "1d ago", p: "p-high", ai: true },
+    { t: "Check in — Lena Fischer", sub: "AgilePM® opportunity stalling", due: "3d ago", p: "p-medium", ai: false },
+  ],
+  today: [
+    { t: "Discovery call — Priya Nair", sub: "AgilePM® Foundation", due: "2:00 PM", p: "p-high", ai: true },
+    { t: "Email brochure — Marcus Webb", sub: "CAPM® Certification", due: "4:30 PM", p: "p-medium", ai: false },
+    { t: "Proposal review — Nexus Corp", sub: "B2B · PMP® 5 seats", due: "EOD", p: "p-urgent", ai: false },
+    { t: "Score review — new SQLs", sub: "AI flagged 3 records", due: "11:00 AM", p: "p-low", ai: true },
+  ],
+  week: [
+    { t: "Demo call — Horizon Consulting", sub: "B2B · PMP® · 12 seats", due: "Thu 11am", p: "p-medium", ai: false },
+    { t: "Check-in — Emma Johnson", sub: "Post-enrollment follow-up", due: "Fri", p: "p-low", ai: false },
+    { t: "Contract follow-up — Apex Solutions", sub: "B2B renewal approaching", due: "Thu", p: "p-high", ai: true },
+    { t: "Pipeline review meeting", sub: "Team weekly review", due: "Fri 9am", p: "p-medium", ai: false },
+    { t: "Send ITIL® batch info — GlobalTech", sub: "12 seats confirmed", due: "Wed", p: "p-high", ai: false },
+    { t: "AI score audit — MQL queue", sub: "Review 19 promote-ready MQLs", due: "Thu", p: "p-low", ai: true },
+    { t: "Follow-up — Sophie Martin", sub: "PRINCE2® Brochure download", due: "Wed", p: "p-medium", ai: false },
+    { t: "Call — Marco Rossi", sub: "Generic lead nurture", due: "Fri", p: "p-low", ai: false },
+  ],
 };
 
-export default async function Page() {
-  let rows: typeof tasks.$inferSelect[] = [];
-  try { rows = await db.select().from(tasks).limit(100); } catch {}
+function TaskGroup({ items, type, toast, onToast }: { items: typeof TASKS.today; type: string; toast: string; onToast: (m: string) => void }) {
+  const [done, setDone] = useState<Record<string, boolean>>({});
+  return (
+    <>
+      {items.map((t) => (
+        <div key={t.t} className="task-item" style={{ opacity: done[t.t] ? 0.35 : 1 }}>
+          <div className={`prio-dot ${t.p}`} />
+          <div
+            className={`task-check${done[t.t] ? " done" : ""}`}
+            onClick={() => { setDone((p) => ({ ...p, [t.t]: true })); onToast("✅ Task completed!"); }}
+          >
+            {done[t.t] && <span style={{ fontSize: 10, color: "#fff" }}>✓</span>}
+          </div>
+          <div className="task-content">
+            <div className="task-subject">{t.t} {t.ai && <span className="ai-badge">AI</span>}</div>
+            <div className="task-sub">{t.sub}</div>
+          </div>
+          <div className={`task-due ${type}`}>{t.due}</div>
+        </div>
+      ))}
+    </>
+  );
+}
+
+export default function TasksPage() {
+  const [toast, setToast] = useState("");
+  const showToast = (m: string) => { setToast(m); setTimeout(() => setToast(""), 2500); };
 
   return (
-    <PageShell title="Tasks" subtitle={`${rows.length} task(s)`}>
-      <table className="w-full text-sm">
-        <thead className="text-left text-ink-3 text-xs uppercase border-b border-line">
-          <tr>
-            <th className="pb-2">Title</th>
-            <th>Status</th>
-            <th>Due</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((t) => (
-            <tr key={t.id} className="border-b border-line hover:bg-surface">
-              <td className="py-2 font-medium">{t.title}</td>
-              <td>
-                <span className={`text-[11px] font-semibold px-2 py-0.5 rounded font-mono uppercase ${STATUS_STYLE[t.status] ?? ""}`}>
-                  {t.status.replace("_", " ")}
-                </span>
-              </td>
-              <td className="text-ink-2">
-                {t.dueDate ? new Date(t.dueDate).toLocaleDateString("en-GB") : "—"}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </PageShell>
+    <div className="content-pad">
+      <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+        <div className="pipeline-toggle">
+          <button className="toggle-btn active">All Tasks</button>
+          <button className="toggle-btn">Mine</button>
+          <button className="toggle-btn">Team</button>
+        </div>
+        <select className="filter-input"><option>All Types</option><option>📞 Call</option><option>✉ Email</option><option>📋 Proposal</option><option>🔄 Follow-Up</option></select>
+        <select className="filter-input"><option>All Priorities</option><option>🔴 Urgent</option><option>🟠 High</option><option>🟡 Medium</option><option>🟢 Low</option></select>
+        <button className="btn btn-primary btn-sm" style={{ marginLeft: "auto" }}>+ New Task</button>
+      </div>
+      <div className="grid-3">
+        <div className="card">
+          <div className="card-header" style={{ background: "var(--red-soft)" }}>
+            <h3 className="card-title" style={{ color: "var(--red)" }}>Overdue <span style={{ fontFamily: "'DM Mono',monospace", fontSize: 13 }}>({TASKS.overdue.length})</span></h3>
+          </div>
+          <div style={{ padding: "8px 16px" }}>
+            <TaskGroup items={TASKS.overdue} type="overdue" toast={toast} onToast={showToast} />
+          </div>
+        </div>
+        <div className="card">
+          <div className="card-header" style={{ background: "var(--amber-soft)" }}>
+            <h3 className="card-title" style={{ color: "var(--amber)" }}>Today <span style={{ fontFamily: "'DM Mono',monospace", fontSize: 13 }}>({TASKS.today.length})</span></h3>
+          </div>
+          <div style={{ padding: "8px 16px" }}>
+            <TaskGroup items={TASKS.today} type="today" toast={toast} onToast={showToast} />
+          </div>
+        </div>
+        <div className="card">
+          <div className="card-header">
+            <h3 className="card-title">This Week <span style={{ fontFamily: "'DM Mono',monospace", fontSize: 13, color: "var(--text-3)" }}>({TASKS.week.length})</span></h3>
+          </div>
+          <div style={{ padding: "8px 16px" }}>
+            <TaskGroup items={TASKS.week} type="soon" toast={toast} onToast={showToast} />
+          </div>
+        </div>
+      </div>
+      <div className={`toast${toast ? " show" : ""}`}>{toast}</div>
+    </div>
   );
 }
