@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 
-type Opp = { name: string; type: string; stage: string; course: string; value: string; close: string; prob: number; owner: string; };
+type Opp = { id?: string; name: string; type: string; stage: string; course: string; value: string; close: string; prob: number; owner: string; };
 
 const INIT_OPPS: Opp[] = [
   { name: "Raj Patel — PRINCE2® Foundation", type: "B2C", stage: "Negotiation", course: "PRINCE2®", value: "£2,200", close: "Apr 30", prob: 88, owner: "S. Jones" },
@@ -41,11 +41,11 @@ function AddDealModal({ onClose, onSave }: { onClose: () => void; onSave: (o: Op
         }),
       });
       if (!res.ok) throw new Error();
-      const currency = form.type === "B2B" ? "£" : "£";
-      const displayVal = form.amount ? `${currency}${Number(form.amount).toLocaleString()}` : "—";
+      const created = await res.json();
+      const displayVal = form.amount ? `£${Number(form.amount).toLocaleString()}` : "—";
       const closeDisplay = form.closeDate ? new Date(form.closeDate).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : "TBD";
       const ownerInitials = form.owner.split(" ").map((w) => w[0]).join(". ") + ".";
-      onSave({ name, type: form.type, stage: form.dealStage, course: form.course, value: displayVal, close: closeDisplay, prob: form.prob, owner: ownerInitials });
+      onSave({ id: created.id, name, type: form.type, stage: form.dealStage, course: form.course, value: displayVal, close: closeDisplay, prob: form.prob, owner: ownerInitials });
     } catch {
       setErr("Failed to save. Please try again.");
     } finally {
@@ -113,6 +113,20 @@ export default function OpportunitiesPage() {
   const [toast, setToast] = useState("");
   const showToast = (m: string) => { setToast(m); setTimeout(() => setToast(""), 2500); };
 
+  async function markWon(opp: Opp) {
+    setOpps((prev) =>
+      prev.filter((o) => (opp.id ? o.id !== opp.id : o.name !== opp.name))
+    );
+    showToast("🎉 Deal marked Won! LMS + Invoice triggered.");
+    if (opp.id) {
+      fetch(`/api/opportunities/${opp.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ stage: "won" }),
+      }).catch(() => {});
+    }
+  }
+
   const filtered = opps.filter((o) => !search || `${o.name} ${o.course} ${o.stage}`.toLowerCase().includes(search.toLowerCase()));
 
   return (
@@ -151,7 +165,7 @@ export default function OpportunitiesPage() {
                     <div style={{ display: "flex", gap: 6 }}>
                       <button className="btn btn-ghost btn-sm" style={{ borderColor: "var(--accent)", color: "var(--accent)" }} onClick={() => showToast("📄 Opening Quote Builder...")}>📄 Quote</button>
                       <button className="btn btn-ghost btn-sm" style={{ borderColor: "var(--blue)", color: "var(--blue)" }} onClick={() => showToast("📋 Opening Contract Builder...")}>📋 Contract</button>
-                      <button className="btn btn-success btn-sm" onClick={() => showToast("🎉 Deal marked Won! LMS + Invoice triggered.")}>Won ✓</button>
+                      <button className="btn btn-success btn-sm" onClick={() => markWon(o)}>Won ✓</button>
                     </div>
                   </td>
                 </tr>

@@ -1,7 +1,7 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
-type Lead = { name: string; email: string; source: string; course: string; score: number; days: number; owner: string; };
+type Lead = { id?: string; name: string; email: string; source: string; course: string; score: number; days: number; owner: string; };
 
 const INIT_LEADS: Lead[] = [
   { name: "James Park", email: "j.park@email.com", source: "Generic Webinar", course: "Project Mgmt (General)", score: 52, days: 3, owner: "S. Jones" },
@@ -38,6 +38,44 @@ export default function LeadsPage() {
   const [toast, setToast] = useState("");
   const showToast = (m: string) => { setToast(m); setTimeout(() => setToast(""), 2500); };
 
+  useEffect(() => {
+    fetch("/api/contacts?stage=lead")
+      .then((r) => r.json())
+      .then((rows: Array<{ id: string; firstName: string; lastName?: string; email?: string; source?: string; courseInterest?: string; score?: number; owner?: string }>) => {
+        if (!Array.isArray(rows) || rows.length === 0) return;
+        const mapped: Lead[] = rows.map((r) => ({
+          id: r.id,
+          name: `${r.firstName}${r.lastName ? " " + r.lastName : ""}`,
+          email: r.email ?? "",
+          source: r.source ?? "",
+          course: r.courseInterest ?? "",
+          score: r.score ?? 0,
+          days: 0,
+          owner: r.owner ?? "",
+        }));
+        setLeads(mapped);
+      })
+      .catch(() => {});
+  }, []);
+
+  function removeLead(lead: Lead) {
+    setLeads((prev) =>
+      prev.filter((l) => (lead.id ? l.id !== lead.id : l.name !== lead.name || l.email !== lead.email))
+    );
+  }
+
+  async function promoteToMQL(lead: Lead) {
+    removeLead(lead);
+    showToast(`✅ ${lead.name} promoted to MQL!`);
+    if (lead.id) {
+      fetch(`/api/contacts/${lead.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ stage: "mql" }),
+      }).catch(() => {});
+    }
+  }
+
   const filtered = leads.filter((l) => !search || `${l.name} ${l.email} ${l.course} ${l.source}`.toLowerCase().includes(search.toLowerCase()));
   const selectedSource = SOURCE_OPTS[form.sourceIdx];
 
@@ -61,7 +99,9 @@ export default function LeadsPage() {
         }),
       });
       if (!res.ok) throw new Error();
+      const created = await res.json();
       const newLead: Lead = {
+        id: created.id,
         name: `${form.firstName} ${form.lastName}`.trim(),
         email: form.email,
         source: selectedSource.label.split(" → ")[0],
@@ -70,7 +110,9 @@ export default function LeadsPage() {
         days: 0,
         owner: form.owner.split(" ")[0][0] + ". " + form.owner.split(" ").slice(-1)[0],
       };
-      setLeads((prev) => [newLead, ...prev]);
+      if (selectedSource.stage === "lead") {
+        setLeads((prev) => [newLead, ...prev]);
+      }
       setShowAdd(false);
       setForm(BLANK);
       showToast(`✅ ${form.firstName} created as ${selectedSource.stage.toUpperCase()}`);
@@ -96,7 +138,7 @@ export default function LeadsPage() {
           <thead><tr><th>Name</th><th>Email</th><th>Source</th><th>Course Interest</th><th>AI Score</th><th>Days in Stage</th><th>Owner</th><th>Action</th></tr></thead>
           <tbody>
             {filtered.map((l, i) => (
-              <tr key={i}>
+              <tr key={l.id ?? i}>
                 <td className="td-name">{l.name}</td>
                 <td>{l.email}</td>
                 <td style={{ color: "var(--text-3)" }}>{l.source}</td>
@@ -104,7 +146,7 @@ export default function LeadsPage() {
                 <td><span className={`score-badge ${scoreClass(l.score)}`}>{l.score}</span></td>
                 <td style={{ fontFamily: "'DM Mono',monospace", color: "var(--text-3)" }}>{l.days}d</td>
                 <td style={{ color: "var(--text-3)" }}>{l.owner}</td>
-                <td><button className="btn btn-ghost btn-sm" onClick={() => showToast(`↑ Promoting ${l.name} to MQL...`)}>→ MQL</button></td>
+                <td><button className="btn btn-ghost btn-sm" onClick={() => promoteToMQL(l)}>→ MQL</button></td>
               </tr>
             ))}
           </tbody>
@@ -132,7 +174,6 @@ export default function LeadsPage() {
                   {SOURCE_OPTS.map((s, i) => <option key={i} value={i}>{s.label}</option>)}
                 </select>
               </div>
-              {/* Routing preview */}
               <div style={{ padding: "10px 14px", borderRadius: "var(--radius-sm)", background: "var(--surface)", border: "1.5px solid var(--border)", marginBottom: 14, display: "flex", alignItems: "center", gap: 10 }}>
                 <span style={{ fontSize: 12, color: "var(--text-3)" }}>🤖 AI will route to:</span>
                 <span className={`pill pill-${selectedSource.stage}`}>{selectedSource.stage.toUpperCase()}</span>
