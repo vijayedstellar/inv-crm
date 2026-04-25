@@ -37,11 +37,44 @@ const ACCOUNTS = [
 function healthColor(h: number) { return h >= 80 ? "var(--green)" : h >= 60 ? "var(--amber)" : "var(--red)"; }
 function healthLabel(h: number) { return h >= 80 ? "Healthy" : h >= 60 ? "At Risk" : "Critical"; }
 
+const ACC_BLANK = { name: "", domain: "", industry: "Technology", size: "100-500", type: "B2B" };
+
 export default function AccountsPage() {
+  const [accounts, setAccounts] = useState(ACCOUNTS);
   const [selected, setSelected] = useState<typeof ACCOUNTS[0] | null>(null);
   const [tab, setTab] = useState("contacts-tab");
+  const [showAdd, setShowAdd] = useState(false);
+  const [form, setForm] = useState(ACC_BLANK);
+  const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState("");
   const showToast = (m: string) => { setToast(m); setTimeout(() => setToast(""), 2500); };
+
+  async function handleAddAccount() {
+    if (!form.name.trim()) { showToast("⚠ Account name is required"); return; }
+    setSaving(true);
+    try {
+      const res = await fetch("/api/accounts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: form.name, domain: form.domain || undefined, industry: form.industry, size: form.size, type: form.type, healthScore: 75 }),
+      });
+      if (!res.ok) throw new Error();
+      const newAcc = {
+        id: String(Date.now()), name: form.name, domain: form.domain, industry: form.industry,
+        size: form.size, type: form.type, ltv: "£0", health: 75, openDeals: 0,
+        openValue: "—", contacts: 0, certProg: "—", upsell: [],
+        bg: "linear-gradient(135deg,#1B3A6B,#2E6EAF)",
+      };
+      setAccounts((prev) => [...prev, newAcc]);
+      setShowAdd(false);
+      setForm(ACC_BLANK);
+      showToast(`✅ ${form.name} added!`);
+    } catch {
+      showToast("❌ Failed to save. Please try again.");
+    } finally {
+      setSaving(false);
+    }
+  }
 
   return (
     <div className="content-pad">
@@ -54,9 +87,14 @@ export default function AccountsPage() {
         <div className="stat-card"><div className="stat-label">Renewal Risk</div><div className="stat-value" style={{ color: "var(--red)" }}>2</div><div className="stat-sub">Contracts expiring 90d</div></div>
       </div>
 
+      {/* Account Cards header */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end" }}>
+        <button className="btn btn-primary btn-sm" onClick={() => setShowAdd(true)}>+ Add Account</button>
+      </div>
+
       {/* Account Cards */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 16 }}>
-        {ACCOUNTS.map((a) => (
+        {accounts.map((a) => (
           <div key={a.id} className="account-card" onClick={() => setSelected(a)}>
             <div style={{ display: "flex", alignItems: "flex-start", gap: 12, marginBottom: 12 }}>
               <div style={{ width: 44, height: 44, borderRadius: 10, background: a.bg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, color: "#fff", fontWeight: 700, fontFamily: "'Playfair Display',serif", flexShrink: 0 }}>
@@ -246,6 +284,41 @@ export default function AccountsPage() {
           </div>
         </div>
       )}
+      {/* Add Account Modal */}
+      {showAdd && (
+        <div className="modal-overlay" style={{ display: "flex" }} onClick={() => setShowAdd(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <div><div className="modal-title">Add Account</div><div style={{ fontSize: 12, color: "var(--text-3)", marginTop: 2 }}>New B2B company profile</div></div>
+              <button className="modal-close" onClick={() => setShowAdd(false)}>✕</button>
+            </div>
+            <div className="modal-body">
+              <div className="form-group"><label className="form-label">Company Name *</label><input className="form-input" placeholder="e.g. Acme Corp Ltd" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
+              <div className="form-group"><label className="form-label">Domain</label><input className="form-input" placeholder="e.g. acmecorp.com" value={form.domain} onChange={(e) => setForm({ ...form, domain: e.target.value })} /></div>
+              <div style={{ display: "flex", gap: 16 }}>
+                <div className="form-group" style={{ flex: 1 }}><label className="form-label">Industry</label>
+                  <select className="form-input" value={form.industry} onChange={(e) => setForm({ ...form, industry: e.target.value })}>
+                    <option>Technology</option><option>Finance</option><option>Healthcare</option><option>Consulting</option><option>Manufacturing</option><option>Retail</option><option>Government</option><option>Education</option><option>Software</option><option>Management</option>
+                  </select>
+                </div>
+                <div className="form-group" style={{ flex: 1 }}><label className="form-label">Company Size</label>
+                  <select className="form-input" value={form.size} onChange={(e) => setForm({ ...form, size: e.target.value })}>
+                    <option>1-50</option><option>50-100</option><option>100-500</option><option>500-1000</option><option>1000+</option>
+                  </select>
+                </div>
+              </div>
+              <div className="form-group"><label className="form-label">Account Type</label>
+                <select className="form-input" value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}><option>B2B</option><option>B2C</option></select>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-ghost" onClick={() => setShowAdd(false)}>Cancel</button>
+              <button className="btn btn-primary" onClick={handleAddAccount} disabled={saving}>{saving ? "Saving..." : "Create Account"}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className={`toast${toast ? " show" : ""}`}>{toast}</div>
     </div>
   );

@@ -49,9 +49,42 @@ function TaskGroup({ items, type, toast, onToast }: { items: typeof TASKS.today;
   );
 }
 
+const TASK_BLANK = { type: "📞 Call", subject: "", dueDate: "", dueTime: "09:00", priority: "medium", assignee: "Sarah Jones", link: "", description: "" };
+
 export default function TasksPage() {
   const [toast, setToast] = useState("");
+  const [showAdd, setShowAdd] = useState(false);
+  const [form, setForm] = useState(TASK_BLANK);
+  const [saving, setSaving] = useState(false);
   const showToast = (m: string) => { setToast(m); setTimeout(() => setToast(""), 2500); };
+
+  async function handleSubmit() {
+    if (!form.subject.trim()) { showToast("⚠ Subject is required"); return; }
+    setSaving(true);
+    try {
+      const dueDateTime = form.dueDate ? `${form.dueDate}T${form.dueTime}:00` : undefined;
+      const res = await fetch("/api/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: `${form.type} — ${form.subject}`,
+          description: form.description || undefined,
+          taskType: form.type,
+          priority: form.priority,
+          dueDate: dueDateTime,
+          assigneeName: form.assignee,
+        }),
+      });
+      if (!res.ok) throw new Error();
+      setShowAdd(false);
+      setForm(TASK_BLANK);
+      showToast("✅ Task created!");
+    } catch {
+      showToast("❌ Failed to save. Please try again.");
+    } finally {
+      setSaving(false);
+    }
+  }
 
   return (
     <div className="content-pad">
@@ -63,7 +96,7 @@ export default function TasksPage() {
         </div>
         <select className="filter-input"><option>All Types</option><option>📞 Call</option><option>✉ Email</option><option>📋 Proposal</option><option>🔄 Follow-Up</option></select>
         <select className="filter-input"><option>All Priorities</option><option>🔴 Urgent</option><option>🟠 High</option><option>🟡 Medium</option><option>🟢 Low</option></select>
-        <button className="btn btn-primary btn-sm" style={{ marginLeft: "auto" }}>+ New Task</button>
+        <button className="btn btn-primary btn-sm" style={{ marginLeft: "auto" }} onClick={() => setShowAdd(true)}>+ New Task</button>
       </div>
       <div className="grid-3">
         <div className="card">
@@ -91,6 +124,53 @@ export default function TasksPage() {
           </div>
         </div>
       </div>
+      {/* New Task Modal */}
+      {showAdd && (
+        <div className="modal-overlay" style={{ display: "flex" }} onClick={() => setShowAdd(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <div className="modal-title">Create Task</div>
+              <button className="modal-close" onClick={() => setShowAdd(false)}>✕</button>
+            </div>
+            <div className="modal-body">
+              <div className="form-group"><label className="form-label">Task Type</label>
+                <select className="form-input" value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>
+                  <option>📞 Call</option><option>✉ Email</option><option>📋 Send Proposal</option><option>🔄 Follow-Up</option><option>👋 Check-In</option><option>🎯 Demo</option>
+                </select>
+              </div>
+              <div className="form-group"><label className="form-label">Subject *</label><input className="form-input" placeholder="Task subject..." value={form.subject} onChange={(e) => setForm({ ...form, subject: e.target.value })} /></div>
+              <div style={{ display: "flex", gap: 16 }}>
+                <div className="form-group" style={{ flex: 1 }}><label className="form-label">Due Date</label><input className="form-input" type="date" value={form.dueDate} onChange={(e) => setForm({ ...form, dueDate: e.target.value })} /></div>
+                <div className="form-group" style={{ flex: 1 }}><label className="form-label">Time</label><input className="form-input" type="time" value={form.dueTime} onChange={(e) => setForm({ ...form, dueTime: e.target.value })} /></div>
+              </div>
+              <div style={{ display: "flex", gap: 16 }}>
+                <div className="form-group" style={{ flex: 1 }}><label className="form-label">Priority</label>
+                  <select className="form-input" value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value })}>
+                    <option value="urgent">🔴 Urgent</option><option value="high">🟠 High</option><option value="medium">🟡 Medium</option><option value="low">🟢 Low</option>
+                  </select>
+                </div>
+                <div className="form-group" style={{ flex: 1 }}><label className="form-label">Assign To</label>
+                  <select className="form-input" value={form.assignee} onChange={(e) => setForm({ ...form, assignee: e.target.value })}>
+                    <option>Sarah Jones</option><option>Michael Khan</option><option>Aisha Patel</option><option>Ryan Lee</option>
+                  </select>
+                </div>
+              </div>
+              <div className="form-group"><label className="form-label">Link To</label>
+                <select className="form-input" value={form.link} onChange={(e) => setForm({ ...form, link: e.target.value })}>
+                  <option value="">— Select contact or deal —</option>
+                  <option>Raj Patel (PRINCE2® Opportunity)</option><option>Sarah Mitchell (SQL)</option><option>David Chen (SQL)</option><option>Nexus Corp (B2B Opportunity)</option>
+                </select>
+              </div>
+              <div className="form-group"><label className="form-label">Description</label><textarea className="form-textarea" placeholder="Task notes..." value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} style={{ height: 70 }} /></div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-ghost" onClick={() => setShowAdd(false)}>Cancel</button>
+              <button className="btn btn-primary" onClick={handleSubmit} disabled={saving}>{saving ? "Saving..." : "Create Task"}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className={`toast${toast ? " show" : ""}`}>{toast}</div>
     </div>
   );
